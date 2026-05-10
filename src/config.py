@@ -945,6 +945,7 @@ class Config:
     )
     _BOOTSTRAP_RUNTIME_ENV_OVERRIDES_CAPTURED = False
     _BOOTSTRAP_RUNTIME_ENV_OVERRIDES = frozenset()
+    _BOOTSTRAP_RUNTIME_ENV_PRESENT_KEYS = frozenset()
 
     def __post_init__(self) -> None:
         _log = logging.getLogger(__name__)
@@ -1296,7 +1297,6 @@ class Config:
             else True
         )
 
-        process_schedule_run_immediately_env = os.environ.get('SCHEDULE_RUN_IMMEDIATELY')
         schedule_run_immediately_env = cls._resolve_env_value(
             'SCHEDULE_RUN_IMMEDIATELY',
             prefer_env_file=True,
@@ -1307,7 +1307,7 @@ class Config:
         # legacy process value instead of being pulled back to the persisted
         # `.env` copy of SCHEDULE_RUN_IMMEDIATELY.
         if (
-            process_schedule_run_immediately_env is None
+            not cls._had_bootstrap_runtime_env_key('SCHEDULE_RUN_IMMEDIATELY')
             and cls._has_bootstrap_runtime_env_override('RUN_IMMEDIATELY')
         ):
             schedule_run_immediately = legacy_run_immediately
@@ -2014,22 +2014,30 @@ class Config:
             return
 
         explicit_overrides = set()
+        present_keys = set()
         for key in cls._WEBUI_RUNTIME_ENV_FILE_PRIORITY_KEYS:
             env_value = os.environ.get(key)
             if env_value is None:
                 continue
 
+            present_keys.add(key)
             file_value = cls._get_env_file_value(key)
             if file_value is None or env_value != file_value:
                 explicit_overrides.add(key)
 
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES = frozenset(explicit_overrides)
+        cls._BOOTSTRAP_RUNTIME_ENV_PRESENT_KEYS = frozenset(present_keys)
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES_CAPTURED = True
 
     @classmethod
     def _has_bootstrap_runtime_env_override(cls, key: str) -> bool:
         cls._capture_bootstrap_runtime_env_overrides()
         return key in cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES
+
+    @classmethod
+    def _had_bootstrap_runtime_env_key(cls, key: str) -> bool:
+        cls._capture_bootstrap_runtime_env_overrides()
+        return key in cls._BOOTSTRAP_RUNTIME_ENV_PRESENT_KEYS
 
     @classmethod
     def _resolve_report_language_env_value(
@@ -2152,6 +2160,7 @@ class Config:
         cls._instance = None
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES_CAPTURED = False
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES = frozenset()
+        cls._BOOTSTRAP_RUNTIME_ENV_PRESENT_KEYS = frozenset()
 
     def has_searxng_enabled(self) -> bool:
         """Whether SearXNG fallback is enabled via self-hosted or public mode."""
