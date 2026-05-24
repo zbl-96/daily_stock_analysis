@@ -788,6 +788,46 @@ class AnalysisApiContractTestCase(unittest.TestCase):
         self.assertEqual(report.details.sector_rankings["top"][0]["name"], "白酒")
         self.assertEqual(report.details.sector_rankings["top"][0]["change_pct"], 2.5)
 
+    def test_build_analysis_report_merges_partial_top_level_context_with_fallback(self) -> None:
+        if _build_analysis_report is None:
+            self.skipTest("analysis endpoint helpers unavailable in this environment")
+
+        report = _build_analysis_report(
+            report_data={
+                "meta": {},
+                "summary": {},
+                "strategy": {},
+                "details": {},
+            },
+            query_id="q1",
+            stock_code="600519",
+            stock_name="贵州茅台",
+            context_snapshot={
+                "fundamental_context": {
+                    "belong_boards": [{"name": "白酒", "type": "行业"}],
+                    "boards": {
+                        "data": {
+                            "top": [{"name": "白酒", "change_pct": 2.5}],
+                            "bottom": [],
+                        }
+                    },
+                }
+            },
+            fallback_fundamental_payload={
+                "earnings": {
+                    "data": {
+                        "financial_report": {"report_date": "2025-12-31", "revenue": 1000},
+                        "dividend": {"ttm_dividend_yield_pct": 2.6},
+                    }
+                }
+            },
+        )
+
+        self.assertEqual(report.details.belong_boards, [{"name": "白酒", "type": "行业"}])
+        self.assertEqual(report.details.sector_rankings["top"][0]["name"], "白酒")
+        self.assertEqual(report.details.financial_report["report_date"], "2025-12-31")
+        self.assertEqual(report.details.dividend_metrics["ttm_dividend_yield_pct"], 2.6)
+
     def test_build_analysis_report_normalizes_related_board_payloads(self) -> None:
         if _build_analysis_report is None:
             self.skipTest("analysis endpoint helpers unavailable in this environment")

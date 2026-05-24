@@ -115,6 +115,23 @@ def _normalize_sector_rankings(value: Any) -> Optional[Dict[str, List[Dict[str, 
     }
 
 
+def _deep_merge_dicts(*values: Any) -> Optional[Dict[str, Any]]:
+    merged: Dict[str, Any] = {}
+    has_value = False
+    for value in values:
+        obj = parse_json_field(value)
+        if not isinstance(obj, dict):
+            continue
+        has_value = True
+        for key, item in obj.items():
+            existing = merged.get(key)
+            if isinstance(existing, dict) and isinstance(item, dict):
+                merged[key] = _deep_merge_dicts(existing, item) or {}
+            else:
+                merged[key] = item
+    return merged if has_value else None
+
+
 def extract_fundamental_context(
     context_snapshot: Any,
     fallback_fundamental_payload: Any = None,
@@ -122,21 +139,25 @@ def extract_fundamental_context(
     """
     Resolve fundamental_context from context snapshot, with optional fallback payload.
     """
+    fallback_obj = parse_json_field(fallback_fundamental_payload)
+    top_level_fundamental = None
+    enhanced_fundamental = None
     snapshot_obj = parse_json_field(context_snapshot)
     if isinstance(snapshot_obj, dict):
         enhanced = snapshot_obj.get("enhanced_context")
         if isinstance(enhanced, dict):
             fundamental = enhanced.get("fundamental_context")
             if isinstance(fundamental, dict):
-                return fundamental
-        top_level_fundamental = snapshot_obj.get("fundamental_context")
-        if isinstance(top_level_fundamental, dict):
-            return top_level_fundamental
+                enhanced_fundamental = fundamental
+        raw_top_level = snapshot_obj.get("fundamental_context")
+        if isinstance(raw_top_level, dict):
+            top_level_fundamental = raw_top_level
 
-    fallback_obj = parse_json_field(fallback_fundamental_payload)
-    if isinstance(fallback_obj, dict):
-        return fallback_obj
-    return None
+    return _deep_merge_dicts(
+        fallback_obj,
+        top_level_fundamental,
+        enhanced_fundamental,
+    )
 
 
 def extract_realtime_detail_fields(context_snapshot: Any) -> Dict[str, Any]:
