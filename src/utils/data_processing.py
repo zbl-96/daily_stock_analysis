@@ -115,6 +115,10 @@ def _normalize_sector_rankings(value: Any) -> Optional[Dict[str, List[Dict[str, 
     }
 
 
+def _is_empty_value(value: Any) -> bool:
+    return value is None or value == "" or value == [] or value == {}
+
+
 def _deep_merge_dicts(*values: Any) -> Optional[Dict[str, Any]]:
     merged: Dict[str, Any] = {}
     has_value = False
@@ -124,9 +128,13 @@ def _deep_merge_dicts(*values: Any) -> Optional[Dict[str, Any]]:
             continue
         has_value = True
         for key, item in obj.items():
+            if _is_empty_value(item):
+                continue
             existing = merged.get(key)
             if isinstance(existing, dict) and isinstance(item, dict):
-                merged[key] = _deep_merge_dicts(existing, item) or {}
+                nested = _deep_merge_dicts(existing, item)
+                if nested:
+                    merged[key] = nested
             else:
                 merged[key] = item
     return merged if has_value else None
